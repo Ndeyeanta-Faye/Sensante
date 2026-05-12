@@ -1,8 +1,9 @@
 # api/main.py
 # SenSante API - Assistant pre-diagnostic medical
-# Lab 3 - Integration de Modeles IA - ESP/UCAD
+# Lab 3 & 4 - Integration de Modeles IA - ESP/UCAD
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import joblib
 import numpy as np
@@ -29,6 +30,15 @@ app = FastAPI(
     title="SenSante API",
     description="Assistant pre-diagnostic medical pour le Senegal",
     version="0.2.0"
+)
+
+# --- CORS ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # --- Chargement du modele (une seule fois) ---
