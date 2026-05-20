@@ -1,1 +1,5 @@
+<<<<<<< HEAD
 *.pkl filter=lfs diff=lfs merge=lfs -text
+=======
+model.pkl filter=lfs diff=lfs merge=lfs -text
+>>>>>>> 9af55d3e80335b5c68e7f6a6f993909920dc135d
