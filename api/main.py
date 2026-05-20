@@ -59,10 +59,12 @@ app.add_middleware(
 
 # --- Chargement du modele (une seule fois) ---
 print("Chargement du modele...")
-model = joblib.load("models/model.pkl")
-le_sexe = joblib.load("models/encoder_sexe.pkl")
-le_region = joblib.load("models/encoder_region.pkl")
-feature_cols = joblib.load("models/feature_cols.pkl")
+from huggingface_hub import hf_hub_download
+
+model = joblib.load(hf_hub_download(repo_id="Antayf/sensante-model", filename="model.pkl"))
+le_sexe = joblib.load(hf_hub_download(repo_id="Antayf/sensante-model", filename="encoder_sexe.pkl"))
+le_region = joblib.load(hf_hub_download(repo_id="Antayf/sensante-model", filename="encoder_region.pkl"))
+feature_cols = joblib.load(hf_hub_download(repo_id="Antayf/sensante-model", filename="feature_cols.pkl"))
 print(f"Modele charge : {list(model.classes_)}")
 
 # --- Client Groq ---
