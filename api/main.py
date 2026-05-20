@@ -1,7 +1,3 @@
-# api/main.py
-# SenSante API - Assistant pre-diagnostic medical
-# Lab 3, 4 & 5 - Integration de Modeles IA - ESP/UCAD
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -10,6 +6,8 @@ import numpy as np
 import os
 from dotenv import load_dotenv
 from groq import Groq
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 # Charger les variables d'environnement
 load_dotenv()
@@ -179,10 +177,18 @@ def explain(data: ExplainInput):
                 {"role": "user", "content": user_prompt}
             ],
             max_tokens=200,
-            temperature=0.5  # Exercice 2 : temperature testee a 0.5
+            temperature=1.0  # Exercice 2 : temperature testee a 0.5
         )
         explication = response.choices[0].message.content
     except Exception as e:
         explication = f"Erreur lors de l'appel au LLM : {str(e)}"
 
     return ExplainOutput(explication=explication)
+
+# Servir le frontend comme fichier statique
+app.mount("/static", StaticFiles(directory="frontend"), name="static")
+
+@app.get("/")
+def serve_frontend():
+    """Servir la page d'accueil."""
+    return FileResponse("frontend/index.html")
