@@ -9,10 +9,8 @@ from groq import Groq
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-# Charger les variables d'environnement
 load_dotenv()
 
-# --- Schemas Pydantic ---
 class PatientInput(BaseModel):
     age: int = Field(..., ge=0, le=120)
     sexe: str = Field(...)
@@ -30,25 +28,23 @@ class DiagnosticOutput(BaseModel):
     message: str
 
 class ExplainInput(BaseModel):
-    diagnostic: str = Field(..., description="Diagnostic predit par le modele")
-    probabilite: float = Field(..., description="Probabilite du diagnostic")
+    diagnostic: str = Field(...)
+    probabilite: float = Field(...)
     age: int = Field(...)
     sexe: str = Field(...)
     temperature: float = Field(...)
     region: str = Field(...)
 
 class ExplainOutput(BaseModel):
-    explication: str = Field(..., description="Explication en francais")
-    modele_llm: str = Field(default="llama-3.1-8b-instant", description="Modele LLM utilise")
+    explication: str = Field(...)
+    modele_llm: str = Field(default="llama-3.1-8b-instant")
 
-# --- Application FastAPI ---
 app = FastAPI(
     title="SenSante API",
     description="Assistant pre-diagnostic medical pour le Senegal",
     version="0.2.0"
 )
 
-# --- CORS ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -57,17 +53,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Chargement du modele (une seule fois) ---
 print("Chargement du modele...")
-from huggingface_hub import hf_hub_download
-
-model = joblib.load(hf_hub_download(repo_id="Antayf/sensante-model", filename="model.pkl"))
-le_sexe = joblib.load(hf_hub_download(repo_id="Antayf/sensante-model", filename="encoder_sexe.pkl"))
-le_region = joblib.load(hf_hub_download(repo_id="Antayf/sensante-model", filename="encoder_region.pkl"))
-feature_cols = joblib.load(hf_hub_download(repo_id="Antayf/sensante-model", filename="feature_cols.pkl"))
+model = joblib.load("models/model.pkl")
+le_sexe = joblib.load("models/encoder_sexe.pkl")
+le_region = joblib.load("models/encoder_region.pkl")
+feature_cols = joblib.load("models/feature_cols.pkl")
 print(f"Modele charge : {list(model.classes_)}")
 
-# --- Client Groq ---
 groq_client = None
 groq_api_key = os.getenv("GROQ_API_KEY")
 if groq_api_key:
@@ -76,27 +68,20 @@ if groq_api_key:
 else:
     print("ATTENTION : GROQ_API_KEY non trouvee. /explain sera desactive.")
 
-# --- System prompt (Exercice 1 : francais + wolof) ---
 SYSTEM_PROMPT = """Tu es un assistant medical senegalais.
 Tu recois un diagnostic et des donnees patient.
 Explique le resultat en melant le francais et le wolof simple,
 comme un medecin senegalais parlerait a son patient.
-Par exemple utilise des mots wolof comme :
-'yaram' (corps), 'dafa tanq' (il a de la fievre),
-'dem dokto' (aller chez le medecin).
 Sois rassurant mais recommande toujours une consultation.
 Maximum 3 phrases.
 Ne fais JAMAIS de diagnostic toi-meme."""
 
-# --- Routes ---
 @app.get("/health")
 def health_check():
     return {"status": "ok", "message": "SenSante API is running"}
 
-# --- GET /model-info ---
 @app.get("/model-info")
 def model_info():
-    """Informations sur le modele charge."""
     return {
         "type": type(model).__name__,
         "nombre_arbres": model.n_estimators,
@@ -106,7 +91,6 @@ def model_info():
 
 @app.post("/predict", response_model=DiagnosticOutput)
 def predict(patient: PatientInput):
-    # Encoder sexe
     try:
         sexe_enc = le_sexe.transform([patient.sexe])[0]
     except ValueError:
@@ -115,7 +99,6 @@ def predict(patient: PatientInput):
             confiance="aucune",
             message=f"Sexe invalide : {patient.sexe}. Utiliser M ou F.")
 
-    # Encoder region
     try:
         region_enc = le_region.transform([patient.region])[0]
     except ValueError:
@@ -124,7 +107,6 @@ def predict(patient: PatientInput):
             confiance="aucune",
             message=f"Region inconnue : {patient.region}")
 
-    # Features
     features = np.array([[
         patient.age, sexe_enc, patient.temperature,
         patient.tension_sys, int(patient.toux),
@@ -132,7 +114,6 @@ def predict(patient: PatientInput):
         region_enc
     ]])
 
-    # Prediction
     diagnostic = model.predict(features)[0]
     proba_max = float(model.predict_proba(features)[0].max())
     confiance = ("haute" if proba_max >= 0.7
@@ -155,10 +136,9 @@ def predict(patient: PatientInput):
 
 @app.post("/explain", response_model=ExplainOutput)
 def explain(data: ExplainInput):
-    """Expliquer un diagnostic en francais/wolof avec un LLM."""
     if not groq_client:
         return ExplainOutput(
-            explication="Service d'explication indisponible. Cle API non configuree.",
+            explication="Service d'explication indisponible.",
             modele_llm="aucun"
         )
 
@@ -179,7 +159,7 @@ def explain(data: ExplainInput):
                 {"role": "user", "content": user_prompt}
             ],
             max_tokens=200,
-            temperature=1.0  # Exercice 2 : temperature testee a 0.5
+            temperature=1.0
         )
         explication = response.choices[0].message.content
     except Exception as e:
@@ -187,10 +167,8 @@ def explain(data: ExplainInput):
 
     return ExplainOutput(explication=explication)
 
-# Servir le frontend comme fichier statique
 app.mount("/static", StaticFiles(directory="Frontend"), name="static")
 
 @app.get("/")
 def serve_frontend():
-    """Servir la page d'accueil."""
     return FileResponse("Frontend/index.html")
